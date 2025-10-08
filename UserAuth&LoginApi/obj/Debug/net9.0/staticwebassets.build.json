@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "Y/VrzUjtfSm41hBuMuo49VdFgc/QFWt1Kinwe/jNfis=",
+  "Source": "UserAuthLoginApi",
+  "BasePath": "_content/UserAuthLoginApi",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}

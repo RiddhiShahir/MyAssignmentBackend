@@ -1,0 +1,7 @@
+namespace UserAuthLoginApi.Services
+{
+    public interface IEmailService
+    {
+        Task SendVerificationLink(string email, string link);
+    }
+}

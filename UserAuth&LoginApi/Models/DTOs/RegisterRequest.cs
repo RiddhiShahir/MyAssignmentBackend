@@ -1,0 +1,44 @@
+using System.ComponentModel.DataAnnotations;
+
+namespace UserAuthLoginApi.Models.DTOs
+{
+    public class RegisterRequest
+    {
+        public string? Name { get; set; }
+        public string? Email { get; set; }
+        public string? Mobile { get; set; }
+        public string? Password { get; set; }
+        public string Role { get; set; } = "User";
+    }
+    
+    public class LoginDto
+    {
+        // Accept email OR mobile in same field
+        [Required] public string Identifier { get; set; } = null!; // email or mobile
+        [Required] public string Password { get; set; } = null!;
+    }
+
+    public class VerifyEmailDto
+    {
+        [Required] public string Token { get; set; } = null!;
+    }
+
+    public class RequestOtpDto
+    {
+        [Required] public string Mobile { get; set; } = null!;
+    }
+
+    public class VerifyOtpDto
+    {
+        [Required] public string Mobile { get; set; } = null!;
+        [Required] public string Otp { get; set; } = null!;
+    }
+
+    public class TokenResponseDto
+    {
+        public string AccessToken { get; set; } = null!;
+        public string RefreshToken { get; set; } = null!;
+        public int ExpiresInSeconds { get; set; }
+    }
+
+}
