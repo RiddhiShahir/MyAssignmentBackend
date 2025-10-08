@@ -13,7 +13,7 @@ namespace UserAuthLoginApi.Models.DTOs
     
     public class LoginDto
     {
-        // Accept email OR mobile in same field
+         public string? LoginMethod { get; set; }  // "email" or "mobile"
         [Required] public string Identifier { get; set; } = null!; // email or mobile
         [Required] public string Password { get; set; } = null!;
     }

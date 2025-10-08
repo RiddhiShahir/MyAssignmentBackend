@@ -726,3 +726,4 @@ C:\CalibitSystems\Assignments\Backend\UserAuth&LoginApi\obj\Debug\net9.0\refint\
 C:\CalibitSystems\Assignments\Backend\UserAuth&LoginApi\obj\Debug\net9.0\UserAuthLoginApi.pdb
 C:\CalibitSystems\Assignments\Backend\UserAuth&LoginApi\obj\Debug\net9.0\UserAuthLoginApi.genruntimeconfig.cache
 C:\CalibitSystems\Assignments\Backend\UserAuth&LoginApi\obj\Debug\net9.0\ref\UserAuthLoginApi.dll
+C:\CalibitSystems\Assignments\Backend\UserAuth&LoginApi\obj\Debug\net9.0\UserAuthLoginApi.sourcelink.json

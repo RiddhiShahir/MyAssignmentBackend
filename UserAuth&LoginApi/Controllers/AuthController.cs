@@ -10,7 +10,7 @@ namespace UserAuthLoginApi.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AuthService _authService;
-         private readonly AppDbContext _context; // ✅ Added to fetch user status
+        private readonly AppDbContext _context; // ✅ Added to fetch user status
 
         public AuthController(AuthService authService, AppDbContext context)
         {
@@ -71,11 +71,12 @@ namespace UserAuthLoginApi.Controllers
                     });
                 }
 
-                return Ok(new{
+                return Ok(new
+                {
                     message = "Email verified successfully.Please verify your mobile number to activate your account.",
                     status = "Pending"
                 });
-             
+
             }
             catch (Exception ex)
             {
@@ -98,16 +99,18 @@ namespace UserAuthLoginApi.Controllers
                 if (user == null)
                     return NotFound(new { error = "User not found" });
 
-     // ✅ Smart response based on verification status
+                // ✅ Smart response based on verification status
                 if (user.IsVerified)
                 {
-                    return Ok(new { 
-                        message = "Mobile verified and account activated successfully.", 
-                        status = "Active" 
+                    return Ok(new
+                    {
+                        message = "Mobile verified and account activated successfully.",
+                        status = "Active"
                     });
                 }
 
-                return Ok(new { 
+                return Ok(new
+                {
                     message = "Mobile verified successfully. Please verify your email to activate your account.",
                     status = "Pending"
                 });
@@ -127,11 +130,12 @@ namespace UserAuthLoginApi.Controllers
                 if (string.IsNullOrWhiteSpace(request.Password))
                     return BadRequest(new { error = "Password cannot be empty" });
 
-                 var user = await _context.Users.FindAsync(request.UserId);
+                var user = await _context.Users.FindAsync(request.UserId);
                 if (user == null)
                     return NotFound(new { error = "User not found" });
 
-                return Ok(new { 
+                return Ok(new
+                {
                     message = "Password set successfully.",
                     verified = user.IsVerified
                 });
@@ -149,8 +153,8 @@ namespace UserAuthLoginApi.Controllers
             try
             {
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var tokenResponse = await _authService.LoginAsync(request, ipAddress);
-                return Ok(tokenResponse);
+                var response = await _authService.LoginAsync(request, ipAddress);
+                return Ok(response);
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -176,6 +180,20 @@ namespace UserAuthLoginApi.Controllers
                     return Unauthorized(new { error = "Invalid or expired refresh token" });
 
                 return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+        [HttpPost("refresh")]
+        public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
+        {
+            try
+            {
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var response = await _authService.RefreshTokenAsync(refreshToken, ipAddress);
+                return Ok(response);
             }
             catch (Exception ex)
             {

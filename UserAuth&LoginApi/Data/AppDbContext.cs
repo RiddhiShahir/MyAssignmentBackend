@@ -9,7 +9,7 @@ namespace UserAuthLoginApi.Data
         public DbSet<User> Users { get; set; }
         public DbSet<EmailVerification> EmailVerifications { get; set; }
         public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
-        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Otp> Otp { get; set; }
         public DbSet<LoginActivity> LoginActivities { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)

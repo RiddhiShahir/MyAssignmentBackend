@@ -10,10 +10,11 @@
 using System;
 using System.Reflection;
 
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("UserAuthLoginApi-12345")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("UserAuthLoginApi")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b87abcd7b0dd0b1620d165233e9a29abfcc72b39")]
 [assembly: System.Reflection.AssemblyProductAttribute("UserAuthLoginApi")]
 [assembly: System.Reflection.AssemblyTitleAttribute("UserAuthLoginApi")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
