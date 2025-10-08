@@ -42,7 +42,7 @@ namespace UserAuthLoginApi.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { error = ex.Message });
+                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
             }
         }
 
@@ -80,7 +80,7 @@ namespace UserAuthLoginApi.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { error = ex.Message });
+                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
             }
         }
 
@@ -117,7 +117,7 @@ namespace UserAuthLoginApi.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { error = ex.Message });
+                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
             }
         }
 
@@ -162,7 +162,7 @@ namespace UserAuthLoginApi.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { error = ex.Message });
+                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
             }
         }
 
@@ -183,7 +183,7 @@ namespace UserAuthLoginApi.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { error = ex.Message });
+                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
             }
         }
         [HttpPost("refresh")]
@@ -197,7 +197,7 @@ namespace UserAuthLoginApi.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { error = ex.Message });
+                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
             }
         }
     }

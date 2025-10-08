@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Identity;
+using BCrypt.Net;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using UserAuthLoginApi.Data;
@@ -42,7 +42,7 @@ namespace UserAuthLoginApi.Services
         private readonly IEmailService _emailService;
         private readonly ISmsService _smsService;
         private readonly IConfiguration _config;
-        private readonly PasswordHasher<User> _passwordHasher;
+        //private readonly PasswordHasher<User> _passwordHasher;
 
         public AuthService(AppDbContext context, IEmailService emailService, ISmsService smsService, IConfiguration config)
         {
@@ -50,7 +50,7 @@ namespace UserAuthLoginApi.Services
             _emailService = emailService;
             _smsService = smsService;
             _config = config;
-            _passwordHasher = new PasswordHasher<User>();
+            //_passwordHasher = new PasswordHasher<User>();
         }
 
         // ------------------ Registration + Verification ------------------
@@ -63,13 +63,15 @@ namespace UserAuthLoginApi.Services
             if (_context.Users.Any(u => u.Email == email || u.Mobile == mobile))
                 throw new Exception("Duplicate email or mobile");
 
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
+
             var user = new User
             {
                 Name = name,
                 Email = email,
                 Mobile = mobile,
-                //Password = BCrypt.Net.BCrypt.HashPassword(password),
-                Password = password,
+                Password = hashedPassword,
+                //Password = password,
                 CreatedDate = DateTime.UtcNow,
                 IsEmailVerified = false,
                 IsMobileVerified = false,
@@ -80,6 +82,7 @@ namespace UserAuthLoginApi.Services
             await _context.SaveChangesAsync();
 
             // ✅ Generate & store email verification token
+
             var emailToken = Guid.NewGuid().ToString();
 
             var emailVerification = new EmailVerification
@@ -95,11 +98,13 @@ namespace UserAuthLoginApi.Services
             await _context.EmailVerifications.AddAsync(emailVerification);
             await _context.SaveChangesAsync();
 
-            // ✅ Send email verification link
+            // ✅ Send email verification link with token
+
             var verificationLink = $"https://UserAuthLoginApi/verify/email?token={emailToken}&userId={user.UserId}";
             await _emailService.SendVerificationLink(email, verificationLink);
 
             // ✅ Generate & send OTP for mobile
+
             var otp = GenerateOtp();
             await _smsService.SendOtp(mobile, otp);
 
@@ -123,6 +128,8 @@ namespace UserAuthLoginApi.Services
             var user = await _context.Users.FindAsync(userId);
             if (user == null) throw new Exception("Invalid user ID");
 
+            //validate token
+
             var verification = await _context.EmailVerifications
                 .Where(e => e.UserId == userId && e.Token == token && !e.IsUsed)
                 .OrderByDescending(e => e.CreatedAt)
@@ -131,8 +138,16 @@ namespace UserAuthLoginApi.Services
             if (verification == null) throw new Exception("Invalid or expired token");
             if (DateTime.UtcNow > verification.ExpiresAt) throw new Exception("Verification link has expired");
 
+            //mark email as verified(token used)
+
             verification.IsUsed = true;
+
+            //update user status
+
             user.IsEmailVerified = true;
+
+            // If both email and mobile verified, mark user as fully verified
+
             if (user.IsEmailVerified && user.IsMobileVerified)
                 user.IsVerified = true;
 
@@ -142,7 +157,7 @@ namespace UserAuthLoginApi.Services
         public async Task VerifyOtp(int userId, string otp)
         {
             var user = await _context.Users.FindAsync(userId);
-            if (user == null) throw new Exception("Invalid user ID");
+            if (user == null) throw new Exception("Invalid, user not found");
 
             var otpEntry = await _context.Otp
                 .Where(o => o.UserId == userId && o.OtpCode == otp && !o.IsUsed)
@@ -150,10 +165,15 @@ namespace UserAuthLoginApi.Services
                 .FirstOrDefaultAsync();
 
             if (otpEntry == null) throw new Exception("Invalid or expired OTP");
+
+            // check expiration of OTP
             if (DateTime.UtcNow > otpEntry.ExpiryTime) throw new Exception("OTP has expired");
 
+            //mark OTP as used
             otpEntry.IsUsed = true;
             otpEntry.UsedAt = DateTime.UtcNow;
+
+            //update user mobile status verified 
 
             user.IsMobileVerified = true;
             if (user.IsEmailVerified && user.IsMobileVerified)
@@ -208,16 +228,22 @@ namespace UserAuthLoginApi.Services
                 throw new Exception("Invalid login method. Use 'email' or 'mobile'.");
 
             if (user == null)
-                throw new UnauthorizedAccessException("User not found");
+                throw new UnauthorizedAccessException("Invalid credentials. User not found");
+
             // ✅ Ensure both verifications done
 
             if (!user.IsVerified || !user.IsEmailVerified || !user.IsMobileVerified)
                 throw new UnauthorizedAccessException("Email and mobile verification required before login");
 
+            if (string.IsNullOrEmpty(user.Password))
+                throw new Exception("User password not set. Please reset your password.");
+
             // ✅ Verify password (BCrypt)
-            bool validPassword = BCrypt.Net.BCrypt.Verify(dto.Password, user.Password);
-            if (!validPassword)
-                throw new UnauthorizedAccessException("Invalid credentials");
+
+            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.Password);
+
+            if (!isPasswordValid)
+                throw new UnauthorizedAccessException("Invalid password");
 
             // ✅ Generate JWT + Refresh token
             var jwt = CreateJwtToken(user);
@@ -225,8 +251,8 @@ namespace UserAuthLoginApi.Services
             {
                 UserId = user.UserId,
                 Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
-                ExpiresAt = DateTime.UtcNow.AddDays(int.Parse(_config["JwtSettings:RefreshTokenDays"] ?? "30"))
-                //CreatedByIp = ipAddress
+                ExpiresAt = DateTime.UtcNow.AddDays(int.Parse(_config["JwtSettings:RefreshTokenDays"] ?? "30")),
+                CreatedByIp = ipAddress
             };
 
             _context.RefreshTokens.Add(refresh);
