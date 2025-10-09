@@ -22,7 +22,7 @@ namespace UserAuthLoginApi.Services
         Task VerifyEmail(int userId, string token);
         Task RequestOtpAsync(string mobile);
         Task VerifyOtpAsync(string mobile, string otp);
-        Task<TokenResponseDto> LoginAsync(LoginDto dto, string ipAddress);
+        Task<object> LoginAsync(LoginDto dto, string ipAddress);
         Task<TokenResponseDto?> RefreshTokenAsync(string refreshToken, string ipAddress);
     }
 
@@ -207,7 +207,7 @@ namespace UserAuthLoginApi.Services
 
         // ------------------ LOGIN IMPLEMENTATION ------------------
 
-        public async Task<TokenResponseDto> LoginAsync(LoginDto dto, string ipAddress)
+        public async Task<Object> LoginAsync(LoginDto dto, string ipAddress)
         {
             if (dto == null || string.IsNullOrEmpty(dto.Identifier) || string.IsNullOrEmpty(dto.Password))
                 throw new Exception("Invalid login request");
@@ -251,22 +251,51 @@ namespace UserAuthLoginApi.Services
             {
                 UserId = user.UserId,
                 Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
-                ExpiresAt = DateTime.UtcNow.AddDays(int.Parse(_config["JwtSettings:RefreshTokenDays"] ?? "30")),
+                ExpiresAt = DateTime.UtcNow.AddMinutes(int.Parse(_config["JwtSettings:RefreshTokenMinutes"] ?? "30")),
                 CreatedByIp = ipAddress
             };
-
             _context.RefreshTokens.Add(refresh);
             await _context.SaveChangesAsync();
 
-            // ✅ Session expiry: 30 minutes of inactivity
-            var accessExpiryMinutes = int.Parse(_config["JwtSettings:AccessTokenMinutes"] ?? "30");
-
-            return new TokenResponseDto
             {
-                AccessToken = jwt,
-                RefreshToken = refresh.Token,
-                ExpiresInSeconds = accessExpiryMinutes * 60
-            };
+                // ❌ Log failed login attempt
+                var failedActivity = new LoginActivity
+                {
+                    UserId = user.UserId,
+                    IpAddress = ipAddress,
+                    Status = "Failed",
+                    LoginTime = DateTime.UtcNow
+                };
+
+                _context.LoginActivity.Add(failedActivity);
+                await _context.SaveChangesAsync();
+
+                // ✅ Record successful login activity
+                var successActivity = new LoginActivity
+                {
+                    UserId = user.UserId,
+                    IpAddress = ipAddress,
+                    Status = "Success",
+                    LoginMethod = dto.LoginMethod,
+                    LoginTime = DateTime.UtcNow
+                };
+                _context.LoginActivity.Add(successActivity);
+                await _context.SaveChangesAsync();
+
+                // ✅ Token response with expiry info,Session expiry: 30 minutes of inactivity
+                var accessExpiryMinutes = int.Parse(_config["JwtSettings:AccessTokenMinutes"] ?? "30");
+
+                return new
+                {
+                    message = "Login successful",
+                    accessToken = jwt,
+                    refreshToken = refresh.Token,
+                    expiresInSeconds = accessExpiryMinutes * 60,
+                    userId = user.UserId,
+                    name = user.Name,
+                    email = user.Email
+                };
+            }
         }
 
         // ------------------ REFRESH TOKEN ------------------

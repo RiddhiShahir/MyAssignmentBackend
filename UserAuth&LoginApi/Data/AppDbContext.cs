@@ -11,7 +11,7 @@ namespace UserAuthLoginApi.Data
         public DbSet<EmailVerificationToken> EmailVerificationTokens => Set<EmailVerificationToken>();
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Otp> Otp { get; set; }
-        public DbSet<LoginActivity> LoginActivities { get; set; }
+        public DbSet<LoginActivity> LoginActivity { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -41,10 +41,12 @@ namespace UserAuthLoginApi.Data
 
             modelBuilder.Entity<LoginActivity>(entity =>
             {
-                entity.HasKey(e => e.Id);
-
-                // entity.Property(e => e.Email).IsRequired();
-                // entity.Property(e => e.LoginTime).IsRequired();
+                entity.HasKey(e => e.ActivityId);
+                entity.Property(e => e.UserId).IsRequired();
+                entity.Property(e => e.LoginTime).IsRequired();
+                entity.Property(e => e.IpAddress).IsRequired();
+                entity.Property(e => e.LoginMethod).IsRequired();
+                entity.Property(e => e.Status).IsRequired();
 
                 entity.HasOne(e => e.User)
                       .WithMany(u => u.LoginActivities)
