@@ -42,7 +42,6 @@ namespace UserAuthLoginApi.Services
         private readonly IEmailService _emailService;
         private readonly ISmsService _smsService;
         private readonly IConfiguration _config;
-        //private readonly PasswordHasher<User> _passwordHasher;
 
         public AuthService(AppDbContext context, IEmailService emailService, ISmsService smsService, IConfiguration config)
         {
@@ -50,7 +49,6 @@ namespace UserAuthLoginApi.Services
             _emailService = emailService;
             _smsService = smsService;
             _config = config;
-            //_passwordHasher = new PasswordHasher<User>();
         }
 
         // ------------------ Registration + Verification ------------------
@@ -206,8 +204,7 @@ namespace UserAuthLoginApi.Services
         private string GenerateOtp() => new Random().Next(100000, 999999).ToString();
 
         // ------------------ LOGIN IMPLEMENTATION ------------------
-
-        public async Task<Object> LoginAsync(LoginDto dto, string ipAddress)
+        public async Task<object> LoginAsync(LoginDto dto, string ipAddress)
         {
             if (dto == null || string.IsNullOrEmpty(dto.Identifier) || string.IsNullOrEmpty(dto.Password))
                 throw new Exception("Invalid login request");
@@ -216,7 +213,6 @@ namespace UserAuthLoginApi.Services
             User? user = null;
 
             // ✅ Determine login method
-
             if (string.IsNullOrEmpty(identifier))
                 throw new ArgumentException("Identifier cannot be null or empty.");
 
@@ -227,23 +223,34 @@ namespace UserAuthLoginApi.Services
             else
                 throw new Exception("Invalid login method. Use 'email' or 'mobile'.");
 
+            // If user not found → record failed attempt
             if (user == null)
+            {
+                await LogLoginActivity(0, ipAddress, dto.LoginMethod, "Failed");
                 throw new UnauthorizedAccessException("Invalid credentials. User not found");
+            }
 
-            // ✅ Ensure both verifications done
-
+            // ✅ Check verifications
             if (!user.IsVerified || !user.IsEmailVerified || !user.IsMobileVerified)
+            {
+                await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
                 throw new UnauthorizedAccessException("Email and mobile verification required before login");
+            }
 
             if (string.IsNullOrEmpty(user.Password))
+            {
+                await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
                 throw new Exception("User password not set. Please reset your password.");
+            }
 
             // ✅ Verify password (BCrypt)
-
             bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.Password);
 
             if (!isPasswordValid)
+            {
+                await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
                 throw new UnauthorizedAccessException("Invalid password");
+            }
 
             // ✅ Generate JWT + Refresh token
             var jwt = CreateJwtToken(user);
@@ -257,46 +264,40 @@ namespace UserAuthLoginApi.Services
             _context.RefreshTokens.Add(refresh);
             await _context.SaveChangesAsync();
 
+            // ✅ Log successful login
+            await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Success");
+
+            // ✅ Token response with expiry info
+            var accessExpiryMinutes = int.Parse(_config["JwtSettings:AccessTokenMinutes"] ?? "30");
+
+            return new
             {
-                // ❌ Log failed login attempt
-                var failedActivity = new LoginActivity
-                {
-                    UserId = user.UserId,
-                    IpAddress = ipAddress,
-                    Status = "Failed",
-                    LoginTime = DateTime.UtcNow
-                };
-
-                _context.LoginActivity.Add(failedActivity);
-                await _context.SaveChangesAsync();
-
-                // ✅ Record successful login activity
-                var successActivity = new LoginActivity
-                {
-                    UserId = user.UserId,
-                    IpAddress = ipAddress,
-                    Status = "Success",
-                    LoginMethod = dto.LoginMethod,
-                    LoginTime = DateTime.UtcNow
-                };
-                _context.LoginActivity.Add(successActivity);
-                await _context.SaveChangesAsync();
-
-                // ✅ Token response with expiry info,Session expiry: 30 minutes of inactivity
-                var accessExpiryMinutes = int.Parse(_config["JwtSettings:AccessTokenMinutes"] ?? "30");
-
-                return new
-                {
-                    message = "Login successful",
-                    accessToken = jwt,
-                    refreshToken = refresh.Token,
-                    expiresInSeconds = accessExpiryMinutes * 60,
-                    userId = user.UserId,
-                    name = user.Name,
-                    email = user.Email
-                };
-            }
+                message = "Login successful",
+                accessToken = jwt,
+                refreshToken = refresh.Token,
+                expiresInSeconds = accessExpiryMinutes * 60,
+                userId = user.UserId,
+                name = user.Name,
+                email = user.Email
+            };
         }
+
+        // ✅ Helper method to log login activity
+        private async Task LogLoginActivity(int userId, string ipAddress, string? loginMethod, string status)
+        {
+            var loginActivity = new LoginActivity
+            {
+                UserId = userId,
+                IpAddress = ipAddress,
+                LoginMethod = loginMethod,
+                Status = status,
+                LoginTime = DateTime.UtcNow
+            };
+
+            _context.LoginActivity.Add(loginActivity);
+            await _context.SaveChangesAsync();
+        }
+
 
         // ------------------ REFRESH TOKEN ------------------
 

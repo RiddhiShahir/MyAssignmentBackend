@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using UserAuthLoginApi.Models.DTOs;
 using UserAuthLoginApi.Services;
 using UserAuthLoginApi.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace UserAuthLoginApi.Controllers
 {
@@ -33,12 +34,20 @@ namespace UserAuthLoginApi.Controllers
 
                 var result = await _authService.Register(request.Name, request.Email, request.Mobile, request.Password);
 
-                return Ok(new
-                {
-                    message = "Registration successful. Check email and SMS for verification.",
-                    // originUsed = origin
-                    result
-                });
+                // return Ok(new
+                // {
+                //     message = "Registration successful. Check email and SMS for verification.",
+                //     // originUsed = origin
+                //     result
+                // });
+
+                var newUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.Mobile == request.Mobile);
+return Ok(new
+{
+    message = "Registration successful. Check email and SMS for verification.",
+    userId = newUser?.UserId,
+    result
+});
             }
             catch (Exception ex)
             {
