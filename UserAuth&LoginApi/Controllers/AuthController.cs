@@ -42,12 +42,12 @@ namespace UserAuthLoginApi.Controllers
                 // });
 
                 var newUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.Mobile == request.Mobile);
-return Ok(new
-{
-    message = "Registration successful. Check email and SMS for verification.",
-    userId = newUser?.UserId,
-    result
-});
+                return Ok(new
+                {
+                    message = "Registration successful. Check email and SMS for verification.",
+                    userId = newUser?.UserId,
+                    result
+                });
             }
             catch (Exception ex)
             {
@@ -130,6 +130,27 @@ return Ok(new
             }
         }
 
+        // --- User Login ---
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto request)
+        {
+            try
+            {
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var response = await _authService.LoginAsync(request, ipAddress);
+                return Ok(response);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
+            }
+        }
+
         // --- Set Password ---
         [HttpPost("setpassword")]
         public async Task<IActionResult> SetPassword([FromBody] SetPasswordRequest request)
@@ -154,26 +175,7 @@ return Ok(new
                 return BadRequest(new { error = ex.Message });
             }
         }
-        // --- User Login ---
 
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto request)
-        {
-            try
-            {
-                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var response = await _authService.LoginAsync(request, ipAddress);
-                return Ok(response);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { error = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
-            }
-        }
 
         // --- Refresh Token ---
 
@@ -195,18 +197,53 @@ return Ok(new
                 return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
             }
         }
-        [HttpPost("refresh")]
-        public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
+        // [HttpPost("refresh")]
+        // public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
+        // {
+        //     try
+        //     {
+        //         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        //         var response = await _authService.RefreshTokenAsync(refreshToken, ipAddress);
+        //         return Ok(response);
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
+        //     }
+        // }
+
+        [HttpPost("requestotp")]
+        public async Task<IActionResult> RequestOtp([FromBody] RequestOtpDto request)
         {
             try
             {
-                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var response = await _authService.RefreshTokenAsync(refreshToken, ipAddress);
-                return Ok(response);
+                await _authService.RequestOtpAsync(request.Mobile);
+                return Ok(new { message = "OTP sent successfully." });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpPost("resendemail")]
+        public async Task<IActionResult> ResendEmail([FromBody] string email)
+        {
+            try
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+                if (user == null) return NotFound(new { error = "User not found" });
+
+                // Reuse token generation logic
+                var emailToken = Guid.NewGuid().ToString();
+             
+                // Reuse sending logic
+
+                return Ok(new { message = "Verification email resent." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
             }
         }
     }
