@@ -24,6 +24,8 @@ namespace UserAuthLoginApi.Services
         Task VerifyOtpAsync(string mobile, string otp);
         Task<object> LoginAsync(LoginDto dto, string ipAddress);
         Task<TokenResponseDto?> RefreshTokenAsync(string refreshToken, string ipAddress);
+        Task RequestTokenAsync(string identifier);
+        Task SetPassword(int userId, string password);
     }
 
     public interface IEmailService
@@ -360,11 +362,11 @@ namespace UserAuthLoginApi.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        public async Task RequestOtpAsync(string identifier)
+        public async Task RequestOtpAsync(string mobile)
         {
-            // Example: find user by email or mobile
+            // find user by  mobile
             var user = await _context.Users.FirstOrDefaultAsync(u =>
-                u.Email == identifier || u.Mobile == identifier);
+                 u.Mobile == mobile);
 
             if (user == null)
                 throw new Exception("User not found.");
@@ -379,21 +381,21 @@ namespace UserAuthLoginApi.Services
                 OtpCode = otp,
                 CreatedAt = DateTime.UtcNow,
                 ExpiryTime = DateTime.UtcNow.AddMinutes(5),
-                IsUsed = false
+                IsUsed = false,
+                Mobile = mobile
             };
 
             _context.Otp.Add(otpEntry);
             await _context.SaveChangesAsync();
 
-            // Send OTP via email/SMS (example)
-            Console.WriteLine($"OTP for {identifier}: {otp}");
+            Console.WriteLine($"OTP for {mobile}: {otp}");
         }
 
 
-        public async Task VerifyOtpAsync(string identifier, string otp)
+        public async Task VerifyOtpAsync(string mobile, string otp)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u =>
-                u.Email == identifier || u.Mobile == identifier);
+            u.Mobile == mobile);
 
             if (user == null)
                 throw new Exception("User not found.");
@@ -417,6 +419,45 @@ namespace UserAuthLoginApi.Services
             await _context.SaveChangesAsync();
         }
 
+        public async Task RequestTokenAsync(string email)
+        {
+            // Find user by email 
+            var user = await _context.Users.FirstOrDefaultAsync(u =>
+                u.Email == email);
+
+            if (user == null)
+                throw new Exception("User not found.");
+
+            // Generate secure token
+            var token = Guid.NewGuid().ToString();
+
+            // Save token in DB
+            var emailVerification = new EmailVerification
+            {
+                UserId = user.UserId,
+                Token = token,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(10), // token valid for 10 minutes
+                IsUsed = false,
+                Email = user.Email!,
+            };
+            await _context.EmailVerifications.AddAsync(emailVerification);
+            await _context.SaveChangesAsync();
+             Console.WriteLine($"[RequestToken] Token for {email}: {token}");
+
+
+            // Example: send token via email (or SMS)
+            if (!string.IsNullOrEmpty(user.Email))
+            {
+                var link = $"https://UserAuth&LoginApi/verify/token?token={token}&userId={user.UserId}";
+                await _emailService.SendVerificationLink(user.Email, link);
+            }
+            else if (!string.IsNullOrEmpty(user.Mobile))
+            {
+                await _smsService.SendOtp(user.Mobile, token); // reuse SMS service
+            }
+
+        }
 
     }
 }

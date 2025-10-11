@@ -226,19 +226,30 @@ namespace UserAuthLoginApi.Controllers
             }
         }
 
-        [HttpPost("resendemail")]
-        public async Task<IActionResult> ResendEmail([FromBody] string email)
+        [HttpPost("requesttoken")]
+        public async Task<IActionResult> RequestToken([FromBody] RequestTokenDto request)
         {
+            // var email = request.email;
+            // if (string.IsNullOrWhiteSpace(email))
+            //     return BadRequest(new { error = "Email is required" });
+
+            // // Check if user exists
+            // try
+            // {
+            //     var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            //     if (user == null) return NotFound(new { error = "User not found" });
+
+            //     // Reuse token generation logic
+            //     var emailToken = Guid.NewGuid().ToString();
+
+            //     // Reuse sending logic
+
+            //     return Ok(new { message = "Verification email resent." });
+            // }
+
             try
             {
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
-                if (user == null) return NotFound(new { error = "User not found" });
-
-                // Reuse token generation logic
-                var emailToken = Guid.NewGuid().ToString();
-             
-                // Reuse sending logic
-
+                await _authService.RequestTokenAsync(request.email);
                 return Ok(new { message = "Verification email resent." });
             }
             catch (Exception ex)
@@ -278,4 +289,10 @@ namespace UserAuthLoginApi.Controllers
     {
         public string RefreshToken { get; set; } = string.Empty;
     }
+
+    public class RequestTokenDto
+    {
+        public string email { get; set; } = string.Empty; // email or mobile
+    }
+
 }
