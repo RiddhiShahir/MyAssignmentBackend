@@ -12,6 +12,8 @@ namespace UserAuthLoginApi.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Otp> Otp { get; set; }
         public DbSet<LoginActivity> LoginActivity { get; set; }
+        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -52,6 +54,15 @@ namespace UserAuthLoginApi.Data
                       .WithMany(u => u.LoginActivities)
                       .HasForeignKey(e => e.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<PasswordResetToken>(entity =>
+            {
+                entity.HasOne(p => p.User)
+                     .WithMany()
+                     .HasForeignKey(p => p.UserId)
+                     .OnDelete(DeleteBehavior.Cascade);
+
             });
         }
     }

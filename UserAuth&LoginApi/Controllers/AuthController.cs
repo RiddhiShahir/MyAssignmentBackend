@@ -151,6 +151,42 @@ namespace UserAuthLoginApi.Controllers
             }
         }
 
+        // ------------------ FORGOT PASSWORD ------------------
+        [HttpPost("forgotpassword")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+        {
+            try
+            {
+                var result = await _authService.ForgotPasswordAsync(dto);
+                if (result)
+                    return Ok(new { message = "Password reset link/token has been sent." });
+                return BadRequest(new { error = "Failed to send reset token." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+
+        // ------------------ RESET PASSWORD ------------------
+        [HttpPost("resetpassword")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            try
+            {
+                var result = await _authService.ResetPasswordAsync(dto);
+                if (result)
+                    return Ok(new { message = "Password has been reset successfully." });
+                return BadRequest(new { error = "Failed to reset password." });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+
         // --- Set Password ---
         [HttpPost("setpassword")]
         public async Task<IActionResult> SetPassword([FromBody] SetPasswordRequest request)
@@ -296,8 +332,8 @@ namespace UserAuthLoginApi.Controllers
     }
 
     public class RequestOtpDto
-{
-    public string Mobile { get; set; } = string.Empty;
-}
+    {
+        public string Mobile { get; set; } = string.Empty;
+    }
 
 }
