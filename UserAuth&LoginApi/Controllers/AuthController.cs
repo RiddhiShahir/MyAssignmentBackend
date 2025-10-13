@@ -295,4 +295,9 @@ namespace UserAuthLoginApi.Controllers
         public string email { get; set; } = string.Empty; // email or mobile
     }
 
+    public class RequestOtpDto
+{
+    public string Mobile { get; set; } = string.Empty;
+}
+
 }

@@ -206,55 +206,75 @@ namespace UserAuthLoginApi.Services
         private string GenerateOtp() => new Random().Next(100000, 999999).ToString();
 
         // ------------------ LOGIN IMPLEMENTATION ------------------
-        public async Task<object> LoginAsync(LoginDto dto, string ipAddress)
+       public async Task<object> LoginAsync(LoginDto dto, string ipAddress)
+{
+    if (dto == null || string.IsNullOrEmpty(dto.Identifier))
+        throw new Exception("Invalid login request");
+
+    var identifier = dto.Identifier.Trim();
+    User? user = null;
+
+    if (dto.LoginMethod?.ToLower() == "email" || identifier.Contains("@"))
+    {
+        user = await _context.Users.FirstOrDefaultAsync(u => (u.Email ?? "").ToLower() == identifier.ToLower());
+        if (user == null)
+            throw new UnauthorizedAccessException("No account found with this email.");
+        
+        if (!user.IsEmailVerified || !user.IsMobileVerified)
+            throw new UnauthorizedAccessException("Please verify both email and mobile before login.");
+
+        if (string.IsNullOrEmpty(dto.Password))
+            throw new Exception("Password is required for email login.");
+
+        bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.Password);
+        if (!isPasswordValid)
         {
-            if (dto == null || string.IsNullOrEmpty(dto.Identifier) || string.IsNullOrEmpty(dto.Password))
-                throw new Exception("Invalid login request");
+            await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
+            throw new UnauthorizedAccessException("Invalid password.");
+        }
+    }
+    else if (dto.LoginMethod?.ToLower() == "mobile")
+    {
+        user = await _context.Users.FirstOrDefaultAsync(u => u.Mobile == identifier);
+        if (user == null)
+            throw new UnauthorizedAccessException("No account found with this mobile number.");
 
-            var identifier = dto.Identifier.Trim();
-            User? user = null;
+        // ✅ Verify OTP
+        var otpEntry = await _context.Otp
+            .Where(o => o.Mobile == identifier && !o.IsUsed && o.ExpiryTime > DateTime.UtcNow)
+            .OrderByDescending(o => o.CreatedAt)
+            .FirstOrDefaultAsync();
 
-            // ✅ Determine login method
-            if (string.IsNullOrEmpty(identifier))
-                throw new ArgumentException("Identifier cannot be null or empty.");
+        if (otpEntry == null || otpEntry.OtpCode != dto.Password)
+        {
+            await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
+            throw new UnauthorizedAccessException("Invalid or expired OTP.");
+        }
 
-            if (dto.LoginMethod?.ToLower() == "email" || identifier.Contains("@"))
-                user = await _context.Users.FirstOrDefaultAsync(u => (u.Email ?? string.Empty).ToLower() == identifier.ToLower());
-            else if (dto.LoginMethod?.ToLower() == "mobile")
-                user = await _context.Users.FirstOrDefaultAsync(u => u.Mobile == identifier);
-            else
-                throw new Exception("Invalid login method. Use 'email' or 'mobile'.");
+        // ✅ Mark OTP as used
+        otpEntry.IsUsed = true;
+        await _context.SaveChangesAsync();
 
-            // If user not found → record failed attempt
-            if (user == null)
-            {
-                await LogLoginActivity(0, ipAddress, dto.LoginMethod, "Failed");
-                throw new UnauthorizedAccessException("Invalid credentials. User not found");
-            }
+        // ✅ Mark mobile as verified if not already
+        if (!user.IsMobileVerified)
+        {
+            user.IsMobileVerified = true;
+            await _context.SaveChangesAsync();
+        }
 
-            // ✅ Check verifications
-            if (!user.IsVerified || !user.IsEmailVerified || !user.IsMobileVerified)
-            {
-                await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
-                throw new UnauthorizedAccessException("Email and mobile verification required before login");
-            }
+        // ✅ If email is not verified → stop login
+        if (!user.IsEmailVerified)
+        {
+            await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
+            throw new UnauthorizedAccessException("Email not verified. Please verify before login.");
+        }
+    }
+    else
+    {
+        throw new Exception("Invalid login method. Use 'email' or 'mobile'.");
+    }
 
-            if (string.IsNullOrEmpty(user.Password))
-            {
-                await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
-                throw new Exception("User password not set. Please reset your password.");
-            }
-
-            // ✅ Verify password (BCrypt)
-            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(dto.Password, user.Password);
-
-            if (!isPasswordValid)
-            {
-                await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
-                throw new UnauthorizedAccessException("Invalid password");
-            }
-
-            // ✅ Generate JWT + Refresh token
+            // ✅ Generate JWT, refresh token, etc. (same as before)
             var jwt = CreateJwtToken(user);
             var refresh = new RefreshToken
             {
@@ -266,27 +286,26 @@ namespace UserAuthLoginApi.Services
             _context.RefreshTokens.Add(refresh);
             await _context.SaveChangesAsync();
 
-            // ✅ Log successful login
             await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Success");
-
-            // ✅ Token response with expiry info
-            var accessExpiryMinutes = int.Parse(_config["JwtSettings:AccessTokenMinutes"] ?? "30");
 
             return new
             {
                 message = "Login successful",
                 accessToken = jwt,
                 refreshToken = refresh.Token,
-                expiresInSeconds = accessExpiryMinutes * 60,
+                expiresInSeconds = int.Parse(_config["JwtSettings:AccessTokenMinutes"] ?? "30") * 60,
                 userId = user.UserId,
                 name = user.Name,
                 email = user.Email
             };
         }
 
+
         // ✅ Helper method to log login activity
         private async Task LogLoginActivity(int userId, string ipAddress, string? loginMethod, string status)
         {
+            if (userId <= 0) return; // prevent FK errors
+
             var loginActivity = new LoginActivity
             {
                 UserId = userId,
@@ -369,7 +388,13 @@ namespace UserAuthLoginApi.Services
                  u.Mobile == mobile);
 
             if (user == null)
-                throw new Exception("User not found.");
+                throw new Exception("User with this mobile number not found.");
+
+            // verify if email and mobile verified as per your flow
+            if (!user.IsMobileVerified)
+                throw new Exception("Mobile not verified. Please verify before requesting OTP.");
+            if (!user.IsEmailVerified)
+                throw new Exception("Email not verified. Please verify before requesting OTP.");
 
             // Generate random OTP
             var otp = new Random().Next(100000, 999999).ToString();
@@ -389,6 +414,12 @@ namespace UserAuthLoginApi.Services
             await _context.SaveChangesAsync();
 
             Console.WriteLine($"OTP for {mobile}: {otp}");
+
+            // return new
+            // {
+            //     message = "OTP sent successfully. Please verify within 5 minutes.",
+            //     mobile = mobile
+            // };
         }
 
 
@@ -443,7 +474,7 @@ namespace UserAuthLoginApi.Services
             };
             await _context.EmailVerifications.AddAsync(emailVerification);
             await _context.SaveChangesAsync();
-             Console.WriteLine($"[RequestToken] Token for {email}: {token}");
+            Console.WriteLine($"[RequestToken] Token for {email}: {token}");
 
 
             // Example: send token via email (or SMS)

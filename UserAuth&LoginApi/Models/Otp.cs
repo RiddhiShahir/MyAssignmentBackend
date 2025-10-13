@@ -8,7 +8,7 @@ namespace UserAuthLoginApi.Models
         public int UserId { get; set; }
         public string? OtpCode { get; set; }
         public string? Mobile { get; set; }
-        public DateTime ExpiryTime { get; set; }
+        public DateTime ExpiryTime { get; set; } = DateTime.UtcNow.AddMinutes(5);
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsUsed { get; set; } = false;
         public DateTime? UsedAt { get; set; }
