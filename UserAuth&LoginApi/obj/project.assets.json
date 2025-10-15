@@ -888,6 +888,32 @@
           }
         }
       },
+      "SendGrid/9.29.3": {
+        "type": "package",
+        "dependencies": {
+          "Newtonsoft.Json": "13.0.1",
+          "starkbank-ecdsa": "[1.3.3, 2.0.0)"
+        },
+        "compile": {
+          "lib/netstandard2.0/SendGrid.dll": {
+            "related": ".pdb;.xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/SendGrid.dll": {
+            "related": ".pdb;.xml"
+          }
+        }
+      },
+      "starkbank-ecdsa/1.3.3": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.1/StarkbankEcdsa.dll": {}
+        },
+        "runtime": {
+          "lib/netstandard2.1/StarkbankEcdsa.dll": {}
+        }
+      },
       "Swashbuckle.AspNetCore/9.0.6": {
         "type": "package",
         "dependencies": {
@@ -1438,7 +1464,7 @@
           }
         }
       },
-      "Twilio/7.13.3": {
+      "Twilio/7.13.4": {
         "type": "package",
         "dependencies": {
           "Microsoft.IdentityModel.Tokens": "8.3.1",
@@ -3465,6 +3491,45 @@
         "postgresql.png"
       ]
     },
+    "SendGrid/9.29.3": {
+      "sha512": "nb/zHePecN9U4/Bmct+O+lpgK994JklbCCNMIgGPOone/DngjQoMCHeTvkl+m0Nglvm0dqMEshmvB4fO8eF3dA==",
+      "type": "package",
+      "path": "sendgrid/9.29.3",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/net40/SendGrid.dll",
+        "lib/net40/SendGrid.pdb",
+        "lib/net40/SendGrid.xml",
+        "lib/net452/SendGrid.dll",
+        "lib/net452/SendGrid.pdb",
+        "lib/net452/SendGrid.xml",
+        "lib/netstandard1.3/SendGrid.dll",
+        "lib/netstandard1.3/SendGrid.pdb",
+        "lib/netstandard1.3/SendGrid.xml",
+        "lib/netstandard2.0/SendGrid.dll",
+        "lib/netstandard2.0/SendGrid.pdb",
+        "lib/netstandard2.0/SendGrid.xml",
+        "sendgrid.9.29.3.nupkg.sha512",
+        "sendgrid.nuspec"
+      ]
+    },
+    "starkbank-ecdsa/1.3.3": {
+      "sha512": "OblOaKb1enXn+dSp7tsx9yjwV+/BEKM9jFhshIkZTwCk7LuTFTp+wSon6rFzuPiIiTGtvVWQNUw2slHjGktJog==",
+      "type": "package",
+      "path": "starkbank-ecdsa/1.3.3",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/net40/StarkbankEcdsa.dll",
+        "lib/net452/StarkbankEcdsa.dll",
+        "lib/netstandard1.3/StarkbankEcdsa.dll",
+        "lib/netstandard2.0/StarkbankEcdsa.dll",
+        "lib/netstandard2.1/StarkbankEcdsa.dll",
+        "starkbank-ecdsa.1.3.3.nupkg.sha512",
+        "starkbank-ecdsa.nuspec"
+      ]
+    },
     "Swashbuckle.AspNetCore/9.0.6": {
       "sha512": "q/UfEAgrk6qQyjHXgsW9ILw0YZLfmPtWUY4wYijliX6supozC+TkzU0G6FTnn/dPYxnChjM8g8lHjWHF6VKy+A==",
       "type": "package",
@@ -4987,10 +5052,10 @@
         "system.threading.tasks.nuspec"
       ]
     },
-    "Twilio/7.13.3": {
-      "sha512": "Wf/UqRzBVyW2lwzQoWntB4S6eDMRZ/+qm0mCmORagQZzv6BJo1F9hlgNFaIcHuMAKm+KDwl0zJ/p+Y9udMPFDw==",
+    "Twilio/7.13.4": {
+      "sha512": "2K0w2cLKmFv/0IMHkOLQPqjvn9COVho7sK/X1mV7aympf4tYVmpQ3ZpiLnlYSygx6y+6uexPMK6JWMlyQtFaWA==",
       "type": "package",
-      "path": "twilio/7.13.3",
+      "path": "twilio/7.13.4",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -5003,7 +5068,7 @@
         "lib/net6.0/Twilio.xml",
         "lib/netstandard2.1/Twilio.dll",
         "lib/netstandard2.1/Twilio.xml",
-        "twilio.7.13.3.nupkg.sha512",
+        "twilio.7.13.4.nupkg.sha512",
         "twilio.nuspec"
       ]
     }
@@ -5016,8 +5081,9 @@
       "Microsoft.EntityFrameworkCore >= 9.0.9",
       "Microsoft.EntityFrameworkCore.Design >= 9.0.9",
       "Npgsql.EntityFrameworkCore.PostgreSQL >= 9.0.4",
+      "SendGrid >= 9.29.3",
       "Swashbuckle.AspNetCore >= 9.0.6",
-      "Twilio >= 7.13.3"
+      "Twilio >= 7.13.4"
     ]
   },
   "packageFolders": {
@@ -5097,13 +5163,17 @@
             "target": "Package",
             "version": "[9.0.4, )"
           },
+          "SendGrid": {
+            "target": "Package",
+            "version": "[9.29.3, )"
+          },
           "Swashbuckle.AspNetCore": {
             "target": "Package",
             "version": "[9.0.6, )"
           },
           "Twilio": {
             "target": "Package",
-            "version": "[7.13.3, )"
+            "version": "[7.13.4, )"
           }
         },
         "imports": [

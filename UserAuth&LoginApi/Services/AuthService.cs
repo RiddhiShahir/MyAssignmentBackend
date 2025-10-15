@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using BCrypt.Net;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -25,7 +21,7 @@ namespace UserAuthLoginApi.Services
         Task<object> LoginAsync(LoginDto dto, string ipAddress);
         Task<TokenResponseDto?> RefreshTokenAsync(string refreshToken, string ipAddress);
         Task RequestTokenAsync(string identifier);
-        Task SetPassword(int userId, string password);
+        //Task SetPassword(int userId, string password);
     }
 
     public interface IEmailService
@@ -44,7 +40,6 @@ namespace UserAuthLoginApi.Services
         private readonly IEmailService _emailService;
         private readonly ISmsService _smsService;
         private readonly IConfiguration _config;
-
         public AuthService(AppDbContext context, IEmailService emailService, ISmsService smsService, IConfiguration config)
         {
             _context = context;
@@ -71,7 +66,6 @@ namespace UserAuthLoginApi.Services
                 Email = email,
                 Mobile = mobile,
                 Password = hashedPassword,
-                //Password = password,
                 CreatedDate = DateTime.UtcNow,
                 IsEmailVerified = false,
                 IsMobileVerified = false,
@@ -182,92 +176,125 @@ namespace UserAuthLoginApi.Services
             await _context.SaveChangesAsync();
         }
 
-        // ------------------ FORGOT PASSWORD ------------------
-
-        public async Task<bool> ForgotPasswordAsync(ForgotPasswordDto dto)
+        // ---------------- FORGOT PASSWORD ----------------
+        public async Task ForgotPasswordAsync(string? email)
         {
-            if (string.IsNullOrEmpty(dto.email))
-                throw new Exception("Email is required.");
-
-            // ✅ Identify user
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == dto.email);
-
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
-                throw new Exception("No account found with this email.");
+                throw new Exception("User not found");
 
-            // ✅ Generate token
-            var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
+            if (!user.IsVerified)
+                throw new Exception("Please verify your email before resetting password.");
 
-            var resetRecord = new PasswordResetToken
+            // Generate reset token
+            string token = Guid.NewGuid().ToString();
+            var expiry = DateTime.UtcNow.AddMinutes(5);
+
+            var resetEntry = new PasswordResetToken
             {
                 UserId = user.UserId,
                 Token = token,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(5)
+                ExpiresAt = expiry,
+                IsUsed = false
             };
 
-            _context.PasswordResetTokens.Add(resetRecord);
+            _context.PasswordResetTokens.Add(resetEntry);
             await _context.SaveChangesAsync();
 
-            // ✅ (Optional) Send token via email or SMS
-            Console.WriteLine($"Password reset token for {user.Email}: {token}");
-
-            return true;
+            // TODO: Send email with token (or reset link)
+            //await _emailService.SendPasswordResetEmail(email, token);
+            Console.WriteLine($"Password reset token for {email}: {token}");
         }
 
-        // ------------------ RESET PASSWORD ------------------
-
-        public async Task<bool> ResetPasswordAsync(ResetPasswordDto dto)
+        // ---------------- RESET PASSWORD (via token)----------------
+        public async Task ResetPasswordAsync(ResetPasswordDto dto)
         {
-            if (string.IsNullOrEmpty(dto.Token) || string.IsNullOrEmpty(dto.NewPassword))
-                throw new Exception("Token and new password are required.");
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+            if (user == null)
+                throw new Exception("User not found");
 
-            // ✅ Validate token
-            var resetRecord = await _context.PasswordResetTokens
-                .Include(r => r.User)
-                .FirstOrDefaultAsync(r => r.Token == dto.Token && !r.IsUsed && r.ExpiresAt > DateTime.UtcNow);
+            var resetToken = await _context.PasswordResetTokens
+                .FirstOrDefaultAsync(t => t.UserId == user.UserId && t.Token == dto.Token && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow);
 
-            if (resetRecord == null)
+            if (resetToken == null)
                 throw new Exception("Invalid or expired reset token.");
 
-            // ✅ Validate password strength
+            if (resetToken.ExpiresAt < DateTime.UtcNow)
+                throw new Exception("Reset token expired.");
+
             if (!IsStrongPassword(dto.NewPassword))
-                throw new Exception("Password must include upper, lower, number, and special character (min 8 chars).");
+                throw new Exception("Weak password. Use uppercase, lowercase, number, and symbol.");
 
-            // ✅ Update password
-            if (resetRecord.User == null)
-                throw new Exception("User not found for this reset token.");
-
-            resetRecord.User.Password = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
-            resetRecord.User.LastUpdatedDate = DateTime.UtcNow;
-            resetRecord.IsUsed = true;
-
-            await _context.SaveChangesAsync();
-            return true;
-        }
-
-        // ------------------ Password Handling ------------------
-
-        public async Task SetPassword(int userId, string password)
-        {
-            if (!IsStrongPassword(password))
-                throw new Exception("Weak password");
-
-            var user = await _context.Users.FindAsync(userId);
-            if (user == null) throw new Exception("User not found");
-
-            user.Password = BCrypt.Net.BCrypt.HashPassword(password);
+            user.Password = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
             user.LastUpdatedDate = DateTime.UtcNow;
+
+            resetToken.IsUsed = true;
+
             await _context.SaveChangesAsync();
         }
 
-        private bool IsStrongPassword(string pw)
+        // ---------------- CHANGE PASSWORD (Logged-in User) ----------------
+        public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword)
         {
-            var regex = new System.Text.RegularExpressions.Regex(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$");
-            return regex.IsMatch(pw);
-        }
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+                throw new Exception("User not found");
 
-        private string GenerateOtp() => new Random().Next(100000, 999999).ToString();
+            if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.Password))
+                throw new Exception("Current password is incorrect");
+
+            if (!IsStrongPassword(newPassword))
+                throw new Exception("Weak password. Use uppercase, lowercase, number, and symbol.");
+
+            user.Password = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            user.LastUpdatedDate = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+        }
+        // // Utility — Generate random reset token
+        // private string GenerateResetToken()
+        // {
+        //     using (var rng = RandomNumberGenerator.Create())
+        //     {
+        //         byte[] bytes = new byte[32];
+        //         rng.GetBytes(bytes);
+        //         return Convert.ToBase64String(bytes);
+        //     }
+        // }
+
+        // Utility(to avoid DRY principle) — Strong password validator
+        // private bool IsStrongPassword(string password)
+        // {
+        //     if (string.IsNullOrWhiteSpace(password)) return false;
+        //     return password.Length >= 8 &&
+        //            password.Any(char.IsUpper) &&
+        //            password.Any(char.IsLower) &&
+        //            password.Any(char.IsDigit) &&
+        //            password.Any(ch => !char.IsLetterOrDigit(ch));
+        // }
+
+
+        // ------------------ Password Handling utilities------------------
+        // public async Task SetPassword(int userId, string password)
+        // {
+        //     if (!IsStrongPassword(password))
+        //         throw new Exception("Weak password");
+
+        //     var user = await _context.Users.FindAsync(userId);
+        //     if (user == null) throw new Exception("User not found");
+
+        //     user.Password = BCrypt.Net.BCrypt.HashPassword(password);
+        //     user.LastUpdatedDate = DateTime.UtcNow;
+        //     await _context.SaveChangesAsync();
+        // }
+
+        // private bool IsStrongPassword(string pw)
+        // {
+        //     var regex = new System.Text.RegularExpressions.Regex(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$");
+        //     return regex.IsMatch(pw);
+        // }
+
+        // private string GenerateOtp() => new Random().Next(100000, 999999).ToString();
 
         // ------------------ LOGIN IMPLEMENTATION ------------------
         public async Task<object> LoginAsync(LoginDto dto, string ipAddress)
@@ -338,7 +365,7 @@ namespace UserAuthLoginApi.Services
                 throw new Exception("Invalid login method. Use 'email' or 'mobile'.");
             }
 
-            // ✅ Generate JWT, refresh token, etc. (same as before)
+            // ✅ Generate JWT, refresh token, etc.
             var jwt = CreateJwtToken(user);
             var refresh = new RefreshToken
             {
@@ -385,34 +412,52 @@ namespace UserAuthLoginApi.Services
 
 
         // ------------------ REFRESH TOKEN ------------------
-
-        public async Task<TokenResponseDto?> RefreshTokenAsync(string token, string ipAddress)
+        public async Task<TokenResponseDto?> RefreshTokenAsync(string refreshToken, string ipAddress)
         {
-            var rt = await _context.RefreshTokens.FirstOrDefaultAsync(t => t.Token == token && !t.Revoked);
-            if (rt == null || rt.ExpiresAt < DateTime.UtcNow)
-                return null;
+            if (string.IsNullOrEmpty(refreshToken))
+                throw new ArgumentException("Refresh token is required");
 
-            var user = await _context.Users.FindAsync(rt.UserId);
+            var existingToken = await _context.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+
+            if (existingToken == null)
+                throw new UnauthorizedAccessException("Invalid or expired refresh token");
+
+            // Check if refresh token expired
+            if (existingToken.ExpiresAt <= DateTime.UtcNow)
+            {
+                existingToken.Revoked = true;
+                await _context.SaveChangesAsync();
+                throw new UnauthorizedAccessException("Refresh token expired, please login again");
+            }
+
+            var user = await _context.Users.FindAsync(existingToken.UserId);
             if (user == null)
-                return null;
+            {
+                existingToken.Revoked = true;
+                await _context.SaveChangesAsync();
+                throw new UnauthorizedAccessException("User not found");
+            }
 
-            rt.Revoked = true;
+            // Generate new token
 
-            var newRefresh = new RefreshToken
+            var newAccessToken = CreateJwtToken(user);
+            var newRefreshToken = new RefreshToken
             {
                 UserId = user.UserId,
                 Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
-                ExpiresAt = DateTime.UtcNow.AddDays(int.Parse(_config["JwtSettings:RefreshTokenDays"] ?? "30")),
+                ExpiresAt = DateTime.UtcNow.AddMinutes(int.Parse(_config["JwtSettings:RefreshTokenMinutes"] ?? "30")),
                 CreatedByIp = ipAddress
             };
 
-            _context.RefreshTokens.Add(newRefresh);
+        //store and remove old one
+            _context.RefreshTokens.Add(newRefreshToken);
+            _context.RefreshTokens.Remove(existingToken);
             await _context.SaveChangesAsync();
 
             return new TokenResponseDto
             {
-                AccessToken = CreateJwtToken(user),
-                RefreshToken = newRefresh.Token,
+                AccessToken = newAccessToken,
+                RefreshToken = newRefreshToken.Token,
                 ExpiresInSeconds = int.Parse(_config["JwtSettings:AccessTokenMinutes"] ?? "30") * 60
             };
         }
@@ -455,10 +500,10 @@ namespace UserAuthLoginApi.Services
                 throw new Exception("User with this mobile number not found.");
 
             // verify if email and mobile verified as per your flow
-            if (!user.IsMobileVerified)
-                throw new Exception("Mobile not verified. Please verify before requesting OTP.");
-            if (!user.IsEmailVerified)
-                throw new Exception("Email not verified. Please verify before requesting OTP.");
+            // if (!user.IsMobileVerified)
+            //     throw new Exception("Mobile not verified. Please verify before requesting OTP.");
+            // if (!user.IsEmailVerified)
+            //     throw new Exception("Email not verified. Please verify before requesting OTP.");
 
             // Generate random OTP
             var otp = new Random().Next(100000, 999999).ToString();
@@ -476,14 +521,9 @@ namespace UserAuthLoginApi.Services
 
             _context.Otp.Add(otpEntry);
             await _context.SaveChangesAsync();
+            //     await _smsService.SendOtp(mobile, otp);
 
             Console.WriteLine($"OTP for {mobile}: {otp}");
-
-            // return new
-            // {
-            //     message = "OTP sent successfully. Please verify within 5 minutes.",
-            //     mobile = mobile
-            // };
         }
 
 
@@ -517,8 +557,7 @@ namespace UserAuthLoginApi.Services
         public async Task RequestTokenAsync(string email)
         {
             // Find user by email 
-            var user = await _context.Users.FirstOrDefaultAsync(u =>
-                u.Email == email);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
 
             if (user == null)
                 throw new Exception("User not found.");
@@ -544,7 +583,7 @@ namespace UserAuthLoginApi.Services
             // Example: send token via email (or SMS)
             if (!string.IsNullOrEmpty(user.Email))
             {
-                var link = $"https://UserAuth&LoginApi/verify/token?token={token}&userId={user.UserId}";
+                var link = $"https://UserAuthLoginApi/verify/email?token={token}&userId={user.UserId}";
                 await _emailService.SendVerificationLink(user.Email, link);
             }
             else if (!string.IsNullOrEmpty(user.Mobile))
@@ -552,6 +591,26 @@ namespace UserAuthLoginApi.Services
                 await _smsService.SendOtp(user.Mobile, token); // reuse SMS service
             }
 
+        }
+        // ------------------- Helper: Generate OTP -------------------
+        private string GenerateOtp()
+        {
+            var random = new Random();
+            return random.Next(100000, 999999).ToString(); // 6-digit OTP
+        }
+
+        // ------------------- Helper: Check Password Strength -------------------
+        private bool IsStrongPassword(string password)
+        {
+            // Minimum 8 characters, at least one uppercase, one lowercase, one digit, and one special character
+            if (string.IsNullOrWhiteSpace(password)) return false;
+            if (password.Length < 8) return false;
+            if (!password.Any(char.IsUpper)) return false;
+            if (!password.Any(char.IsLower)) return false;
+            if (!password.Any(char.IsDigit)) return false;
+            if (!password.Any(ch => "!@#$%^&*()_+-=[]{}|;':\",.<>?".Contains(ch))) return false;
+
+            return true;
         }
 
     }

@@ -9,12 +9,11 @@ namespace UserAuthLoginApi.Models
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
-
         public int UserId { get; set; }
 
         [Required]
         public string Token { get; set; } = string.Empty;
-
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime ExpiresAt { get; set; } = DateTime.UtcNow.AddMinutes(5);
 
         public bool IsUsed { get; set; } = false;

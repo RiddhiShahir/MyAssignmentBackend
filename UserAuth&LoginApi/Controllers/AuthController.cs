@@ -3,6 +3,7 @@ using UserAuthLoginApi.Models.DTOs;
 using UserAuthLoginApi.Services;
 using UserAuthLoginApi.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace UserAuthLoginApi.Controllers
 {
@@ -33,13 +34,6 @@ namespace UserAuthLoginApi.Controllers
                 // Call actual registration logic:
 
                 var result = await _authService.Register(request.Name, request.Email, request.Mobile, request.Password);
-
-                // return Ok(new
-                // {
-                //     message = "Registration successful. Check email and SMS for verification.",
-                //     // originUsed = origin
-                //     result
-                // });
 
                 var newUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.Mobile == request.Mobile);
                 return Ok(new
@@ -149,18 +143,18 @@ namespace UserAuthLoginApi.Controllers
             {
                 return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
             }
+
         }
 
-        // ------------------ FORGOT PASSWORD ------------------
+        // ---------------- FORGOT PASSWORD ----------------
+
         [HttpPost("forgotpassword")]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
         {
             try
             {
-                var result = await _authService.ForgotPasswordAsync(dto);
-                if (result)
-                    return Ok(new { message = "Password reset link/token has been sent." });
-                return BadRequest(new { error = "Failed to send reset token." });
+                await _authService.ForgotPasswordAsync(dto.email);
+                return Ok(new { message = "Password reset token sent to your email." });
             }
             catch (Exception ex)
             {
@@ -168,17 +162,15 @@ namespace UserAuthLoginApi.Controllers
             }
         }
 
+        // ---------------- RESET PASSWORD (VIA TOKEN)----------------
 
-        // ------------------ RESET PASSWORD ------------------
         [HttpPost("resetpassword")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
         {
             try
             {
-                var result = await _authService.ResetPasswordAsync(dto);
-                if (result)
-                    return Ok(new { message = "Password has been reset successfully." });
-                return BadRequest(new { error = "Failed to reset password." });
+                await _authService.ResetPasswordAsync(dto);
+                return Ok(new { message = "Password reset successfully." });
             }
             catch (Exception ex)
             {
@@ -186,25 +178,21 @@ namespace UserAuthLoginApi.Controllers
             }
         }
 
+        // ---------------- CHANGE PASSWORD (logged in user) ----------------
 
-        // --- Set Password ---
-        [HttpPost("setpassword")]
-        public async Task<IActionResult> SetPassword([FromBody] SetPasswordRequest request)
+        [Authorize]  // Requires logged-in user
+        [HttpPost("changepassword")]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
         {
+            var userEmail = User.Identity?.Name; // From JWT
+            if (userEmail == null)
+                return Unauthorized(new { message = "User not authenticated." });
+
             try
             {
-                if (string.IsNullOrWhiteSpace(request.Password))
-                    return BadRequest(new { error = "Password cannot be empty" });
-
-                var user = await _context.Users.FindAsync(request.UserId);
-                if (user == null)
-                    return NotFound(new { error = "User not found" });
-
-                return Ok(new
-                {
-                    message = "Password set successfully.",
-                    verified = user.IsVerified
-                });
+                var userId = int.Parse(User.FindFirst("id")!.Value);
+                await _authService.ChangePasswordAsync(userId, dto.CurrentPassword, dto.NewPassword);
+                return Ok(new { message = "Password changed successfully." });
             }
             catch (Exception ex)
             {
@@ -212,41 +200,7 @@ namespace UserAuthLoginApi.Controllers
             }
         }
 
-
-        // --- Refresh Token ---
-
-        [HttpPost("refresh-token")]
-        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
-        {
-            try
-            {
-                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var result = await _authService.RefreshTokenAsync(request.RefreshToken, ipAddress);
-
-                if (result == null)
-                    return Unauthorized(new { error = "Invalid or expired refresh token" });
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
-            }
-        }
-        // [HttpPost("refresh")]
-        // public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
-        // {
-        //     try
-        //     {
-        //         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        //         var response = await _authService.RefreshTokenAsync(refreshToken, ipAddress);
-        //         return Ok(response);
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         return BadRequest(new { error = ex.Message, details = ex.InnerException?.Message });
-        //     }
-        // }
+        // ---------------- RESEND OTP ----------------
 
         [HttpPost("requestotp")]
         public async Task<IActionResult> RequestOtp([FromBody] RequestOtpDto request)
@@ -261,6 +215,8 @@ namespace UserAuthLoginApi.Controllers
                 return BadRequest(new { error = ex.Message });
             }
         }
+
+        // ---------------- RESEND EMAIL TOKEN ----------------
 
         [HttpPost("requesttoken")]
         public async Task<IActionResult> RequestToken([FromBody] RequestTokenDto request)
@@ -293,6 +249,59 @@ namespace UserAuthLoginApi.Controllers
                 return BadRequest(new { error = ex.Message });
             }
         }
+
+        // // --- Set Password ---
+        // [HttpPost("setpassword")]
+        // public async Task<IActionResult> SetPassword([FromBody] SetPasswordRequest request)
+        // {
+        //     try
+        //     {
+        //         if (string.IsNullOrWhiteSpace(request.Password))
+        //             return BadRequest(new { error = "Password cannot be empty" });
+
+        //         var user = await _context.Users.FindAsync(request.UserId);
+        //         if (user == null)
+        //             return NotFound(new { error = "User not found" });
+
+        //         return Ok(new
+        //         {
+        //             message = "Password set successfully.",
+        //             verified = user.IsVerified
+        //         });
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         return BadRequest(new { error = ex.Message });
+        //     }
+        // }
+
+
+        [HttpPost("refresh-token")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+        {
+            try
+            {
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var result = await _authService.RefreshTokenAsync(request.RefreshToken, ipAddress);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet("validate-token")]
+        [Authorize]
+        public IActionResult ValidateToken()
+        {
+            return Ok(new { message = "Token is valid" });
+        }
+
     }
 
     // --- DTOs for requests ---

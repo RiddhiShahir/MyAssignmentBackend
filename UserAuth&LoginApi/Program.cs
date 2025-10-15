@@ -13,13 +13,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddControllers();
 
-// Register concrete implementations for the services
+// Register services
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<SmsService>();
 builder.Services.AddScoped<AuthService>();
+
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ISmsService, SmsService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -40,10 +41,10 @@ builder.Services.AddCors(options =>
     });
 });
 
-var Key = builder.Configuration["Jwt:Key"];
+var Key = builder.Configuration["JwtSettings:Key"];
 if (string.IsNullOrEmpty(Key))
 {
-    throw new InvalidOperationException("JWT Key is not configured. Please set 'Jwt:Key' in your configuration.");
+    throw new InvalidOperationException("JWT Key is not configured. Please set 'JwtSettings:Key' in your configuration.");
 }
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
@@ -54,8 +55,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
+
+        ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
+        ValidAudience = builder.Configuration["JwtSettings:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Key))
     };
 });

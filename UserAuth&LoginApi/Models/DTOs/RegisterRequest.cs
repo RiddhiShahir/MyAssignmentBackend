@@ -30,14 +30,14 @@ namespace UserAuthLoginApi.Models.DTOs
 
     public class VerifyOtpDto
     {
-        [Required] public string Mobile { get; set; } = null!;
+        // [Required] public string Mobile { get; set; } = null!;
         [Required] public string Otp { get; set; } = null!;
     }
 
     public class TokenResponseDto
     {
-        public string AccessToken { get; set; } = null!;
-        public string RefreshToken { get; set; } = null!;
+        public string AccessToken { get; set; } = string.Empty;
+        public string RefreshToken { get; set; } = string.Empty;
         public int ExpiresInSeconds { get; set; }
     }
 
