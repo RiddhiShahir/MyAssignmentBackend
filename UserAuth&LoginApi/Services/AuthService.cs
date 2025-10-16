@@ -273,8 +273,6 @@ namespace UserAuthLoginApi.Services
             return (true, "Password updated successfully");
         }
 
-
-
         // // Utility — Generate random reset token
         // private string GenerateResetToken()
         // {
@@ -677,17 +675,35 @@ namespace UserAuthLoginApi.Services
             return new UserProfileDto
             {
                 Id = user.UserId,
-                FullName = user.Name,
+                Name = user.Name,
                 Email = user.Email,
-                Phone = user.Mobile,
+                Mobile = user.Mobile,
                 CreatedAt = user.CreatedDate
             };
         }
 
+        public async Task<bool> UpdateUserProfileAsync(string email, UpdateProfileDto dto)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+                return false;
+
+            if (!string.IsNullOrEmpty(dto.Name))
+                user.Name = dto.Name;
+
+            if (!string.IsNullOrEmpty(dto.Mobile))
+                user.Mobile = dto.Mobile;
+
+            if (!string.IsNullOrEmpty(dto.Email))
+                user.Email = dto.Email;
+
+            user.LastUpdatedDate = DateTime.UtcNow;
+
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+
     }
 }
-
-
-
-
-

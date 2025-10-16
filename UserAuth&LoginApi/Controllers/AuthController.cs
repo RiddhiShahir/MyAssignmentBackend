@@ -200,18 +200,18 @@ namespace UserAuthLoginApi.Controllers
         //     }
         // }
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
-{
-    var userEmail = User.Identity?.Name; // Extract from JWT
-    if (string.IsNullOrEmpty(userEmail))
-        return Unauthorized(new { message = "Invalid or missing token" });
+        {
+            var userEmail = User.Identity?.Name; // Extract from JWT
+            if (string.IsNullOrEmpty(userEmail))
+                return Unauthorized(new { message = "Invalid or missing token" });
 
-    var result = await _authService.ChangePasswordAsync(userEmail, dto.CurrentPassword, dto.NewPassword);
+            var result = await _authService.ChangePasswordAsync(userEmail, dto.CurrentPassword, dto.NewPassword);
 
-    if (!result.Success)
-        return BadRequest(new { message = result.Message });
+            if (!result.Success)
+                return BadRequest(new { message = result.Message });
 
-    return Ok(new { message = "Password updated successfully" });
-}
+            return Ok(new { message = "Password updated successfully" });
+        }
 
         // ---------------- RESEND OTP ----------------
 
@@ -327,7 +327,7 @@ namespace UserAuthLoginApi.Controllers
             }
         }
 
-         [Authorize]
+        [Authorize]
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
@@ -340,9 +340,9 @@ namespace UserAuthLoginApi.Controllers
                 .Select(u => new
                 {
                     Id = u.UserId,
-                    FullName = u.Name,
-                    Email = u.Email,
-                    Phone = u.Mobile,
+                    name = u.Name,
+                    email = u.Email,
+                    mobile = u.Mobile,
                     CreatedAt = u.CreatedDate
                 })
                 .FirstOrDefaultAsync();
@@ -352,6 +352,22 @@ namespace UserAuthLoginApi.Controllers
 
             return Ok(user);
         }
+
+        [Authorize]
+        [HttpPut("updateprofile")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
+        {
+            var email = User.Identity?.Name;
+            if (email == null)
+                return Unauthorized(new { message = "Invalid or missing token" });
+
+            var success = await _authService.UpdateUserProfileAsync(email, dto);
+            if (!success)
+                return NotFound(new { message = "User not found" });
+
+            return Ok(new { message = "Profile updated successfully" });
+        }
+
 
     }
 
