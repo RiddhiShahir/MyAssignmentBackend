@@ -182,23 +182,36 @@ namespace UserAuthLoginApi.Controllers
 
         [Authorize]  // Requires logged-in user
         [HttpPost("changepassword")]
-        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
-        {
-            var userEmail = User.Identity?.Name; // From JWT
-            if (userEmail == null)
-                return Unauthorized(new { message = "User not authenticated." });
+        // public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+        // {
+        //     var userEmail = User.Identity?.Name; // Extract From JWT
+        //     if (userEmail == null)
+        //         return Unauthorized(new { message = "User not authenticated." });
 
-            try
-            {
-                var userId = int.Parse(User.FindFirst("id")!.Value);
-                await _authService.ChangePasswordAsync(userId, dto.CurrentPassword, dto.NewPassword);
-                return Ok(new { message = "Password changed successfully." });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new { error = ex.Message });
-            }
-        }
+        //     try
+        //     {
+        //         var userId = int.Parse(User.FindFirst("id")!.Value);
+        //         await _authService.ChangePasswordAsync(userId, dto.CurrentPassword, dto.NewPassword);
+        //         return Ok(new { message = "Password changed successfully." });
+        //     }
+        //     catch (Exception ex)
+        //     {
+        //         return BadRequest(new { error = ex.Message });
+        //     }
+        // }
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+{
+    var userEmail = User.Identity?.Name; // Extract from JWT
+    if (string.IsNullOrEmpty(userEmail))
+        return Unauthorized(new { message = "Invalid or missing token" });
+
+    var result = await _authService.ChangePasswordAsync(userEmail, dto.CurrentPassword, dto.NewPassword);
+
+    if (!result.Success)
+        return BadRequest(new { message = result.Message });
+
+    return Ok(new { message = "Password updated successfully" });
+}
 
         // ---------------- RESEND OTP ----------------
 

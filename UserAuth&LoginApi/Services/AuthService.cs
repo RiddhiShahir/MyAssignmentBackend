@@ -236,23 +236,45 @@ namespace UserAuthLoginApi.Services
         }
 
         // ---------------- CHANGE PASSWORD (Logged-in User) ----------------
-        public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+        // public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+        // {
+        //     var user = await _context.Users.FindAsync(userId);
+        //     if (user == null)
+        //         throw new Exception("User not found");
+
+        //     if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.Password))
+        //         throw new Exception("Current password is incorrect");
+
+        //     if (!IsStrongPassword(newPassword))
+        //         throw new Exception("Weak password. Use uppercase, lowercase, number, and symbol.");
+
+        //     user.Password = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        //     user.LastUpdatedDate = DateTime.UtcNow;
+
+        //     await _context.SaveChangesAsync();
+        // }
+        public async Task<(bool Success, string Message)> ChangePasswordAsync(string email, string currentPassword, string newPassword)
         {
-            var user = await _context.Users.FindAsync(userId);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
             if (user == null)
-                throw new Exception("User not found");
+                return (false, "User not found");
 
-            if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.Password))
-                throw new Exception("Current password is incorrect");
+            // Verify current password
+            bool isPasswordValid = BCrypt.Net.BCrypt.Verify(currentPassword, user.Password);
+            if (!isPasswordValid)
+                return (false, "Incorrect current password");
 
-            if (!IsStrongPassword(newPassword))
-                throw new Exception("Weak password. Use uppercase, lowercase, number, and symbol.");
-
+            // Update to new password
             user.Password = BCrypt.Net.BCrypt.HashPassword(newPassword);
             user.LastUpdatedDate = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+
+            return (true, "Password updated successfully");
         }
+
+
+
         // // Utility — Generate random reset token
         // private string GenerateResetToken()
         // {
