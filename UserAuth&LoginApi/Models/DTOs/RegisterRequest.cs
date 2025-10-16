@@ -34,11 +34,4 @@ namespace UserAuthLoginApi.Models.DTOs
         [Required] public string Otp { get; set; } = null!;
     }
 
-    public class TokenResponseDto
-    {
-        public string AccessToken { get; set; } = string.Empty;
-        public string RefreshToken { get; set; } = string.Empty;
-        public int ExpiresInSeconds { get; set; }
-    }
-
 }

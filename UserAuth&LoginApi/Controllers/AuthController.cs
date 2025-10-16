@@ -297,9 +297,47 @@ namespace UserAuthLoginApi.Controllers
 
         [HttpGet("validate-token")]
         [Authorize]
-        public IActionResult ValidateToken()
+        public async Task<IActionResult> ValidateToken()
         {
-            return Ok(new { message = "Token is valid" });
+            try
+            {
+                var token = HttpContext.Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+                var isValid = await _authService.ValidateTokenAsync(token);
+                if (!isValid)
+                    return Unauthorized(new { error = "Invalid or expired token" });
+
+                return Ok(new { message = "Token is valid" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+         [Authorize]
+        [HttpGet("profile")]
+        public async Task<IActionResult> GetProfile()
+        {
+            var email = User.Identity?.Name; // Extracted from JWT
+            if (string.IsNullOrEmpty(email))
+                return Unauthorized(new { message = "Invalid or missing token" });
+
+            var user = await _context.Users
+                .Where(u => u.Email == email)
+                .Select(u => new
+                {
+                    Id = u.UserId,
+                    FullName = u.Name,
+                    Email = u.Email,
+                    Phone = u.Mobile,
+                    CreatedAt = u.CreatedDate
+                })
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+                return NotFound(new { message = "User not found" });
+
+            return Ok(user);
         }
 
     }

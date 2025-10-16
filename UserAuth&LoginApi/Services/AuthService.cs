@@ -1,4 +1,3 @@
-
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,6 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 using UserAuthLoginApi.Data;
 using UserAuthLoginApi.Models;
 using UserAuthLoginApi.Models.DTOs;
+using Twilio.Rest.Api.V2010.Account.AvailablePhoneNumberCountry;
 
 namespace UserAuthLoginApi.Services
 {
@@ -20,8 +20,10 @@ namespace UserAuthLoginApi.Services
         Task VerifyOtpAsync(string mobile, string otp);
         Task<object> LoginAsync(LoginDto dto, string ipAddress);
         Task<TokenResponseDto?> RefreshTokenAsync(string refreshToken, string ipAddress);
+        Task<bool> ValidateTokenAsync(String token);
         Task RequestTokenAsync(string identifier);
         //Task SetPassword(int userId, string password);
+        Task<UserProfileDto?> GetUserProfileAsync(string email);
     }
 
     public interface IEmailService
@@ -288,14 +290,6 @@ namespace UserAuthLoginApi.Services
         //     await _context.SaveChangesAsync();
         // }
 
-        // private bool IsStrongPassword(string pw)
-        // {
-        //     var regex = new System.Text.RegularExpressions.Regex(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$");
-        //     return regex.IsMatch(pw);
-        // }
-
-        // private string GenerateOtp() => new Random().Next(100000, 999999).ToString();
-
         // ------------------ LOGIN IMPLEMENTATION ------------------
         public async Task<object> LoginAsync(LoginDto dto, string ipAddress)
         {
@@ -391,7 +385,6 @@ namespace UserAuthLoginApi.Services
             };
         }
 
-
         // ✅ Helper method to log login activity
         private async Task LogLoginActivity(int userId, string ipAddress, string? loginMethod, string status)
         {
@@ -410,6 +403,37 @@ namespace UserAuthLoginApi.Services
             await _context.SaveChangesAsync();
         }
 
+        // ------VALIDATE TOKEN------------------
+
+        public async Task<bool> ValidateTokenAsync(string token)
+        {
+            try
+            {
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var key = Encoding.UTF8.GetBytes(_config["JwtSettings:Key"] ?? throw new InvalidOperationException("JWT Key is missing"));
+
+                tokenHandler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = _config["JwtSettings:Issuer"],
+                    ValidAudience = _config["JwtSettings:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(key)
+                }, out SecurityToken validatedToken);
+
+                var jwtToken = (JwtSecurityToken)validatedToken;
+                var userId = int.Parse(jwtToken.Claims.First(x => x.Type == "sub").Value);
+
+                var user = await _context.Users.FindAsync(userId);
+                return user != null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         // ------------------ REFRESH TOKEN ------------------
         public async Task<TokenResponseDto?> RefreshTokenAsync(string refreshToken, string ipAddress)
@@ -417,7 +441,7 @@ namespace UserAuthLoginApi.Services
             if (string.IsNullOrEmpty(refreshToken))
                 throw new ArgumentException("Refresh token is required");
 
-            var existingToken = await _context.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+            var existingToken = await _context.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == refreshToken); // && rt.ExpiresAt > DateTime.UtcNow);
 
             if (existingToken == null)
                 throw new UnauthorizedAccessException("Invalid or expired refresh token");
@@ -449,7 +473,7 @@ namespace UserAuthLoginApi.Services
                 CreatedByIp = ipAddress
             };
 
-        //store and remove old one
+            //store and remove old one
             _context.RefreshTokens.Add(newRefreshToken);
             _context.RefreshTokens.Remove(existingToken);
             await _context.SaveChangesAsync();
@@ -463,7 +487,6 @@ namespace UserAuthLoginApi.Services
         }
 
         // ------------------ JWT CREATION ------------------
-
         private string CreateJwtToken(User user)
         {
             var jwtSettings = _config.GetSection("JwtSettings");
@@ -475,6 +498,10 @@ namespace UserAuthLoginApi.Services
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
+
+                // ✅ This is critical: it allows [Authorize] and User.Identity.Name to work
+                new Claim(ClaimTypes.Name, user.Email ?? string.Empty),
+
                 new Claim(ClaimTypes.Role, user.Role ?? "User"),
                 new Claim("name", user.Name ?? string.Empty)
             };
@@ -516,7 +543,8 @@ namespace UserAuthLoginApi.Services
                 CreatedAt = DateTime.UtcNow,
                 ExpiryTime = DateTime.UtcNow.AddMinutes(5),
                 IsUsed = false,
-                Mobile = mobile
+                Mobile = mobile,
+                UsedAt = DateTime.UtcNow
             };
 
             _context.Otp.Add(otpEntry);
@@ -596,7 +624,9 @@ namespace UserAuthLoginApi.Services
         private string GenerateOtp()
         {
             var random = new Random();
-            return random.Next(100000, 999999).ToString(); // 6-digit OTP
+            return random.Next(100000, 999999).ToString();
+            // OR by using
+            // private string GenerateOtp() => new Random().Next(100000, 999999).ToString();
         }
 
         // ------------------- Helper: Check Password Strength -------------------
@@ -611,7 +641,31 @@ namespace UserAuthLoginApi.Services
             if (!password.Any(ch => "!@#$%^&*()_+-=[]{}|;':\",.<>?".Contains(ch))) return false;
 
             return true;
+            // OR using
+            //     var regex = new System.Text.RegularExpressions.Regex(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$");
+            //     return regex.IsMatch(password);
+        }
+
+        public async Task<UserProfileDto?> GetUserProfileAsync(string email)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+                return null;
+
+            return new UserProfileDto
+            {
+                Id = user.UserId,
+                FullName = user.Name,
+                Email = user.Email,
+                Phone = user.Mobile,
+                CreatedAt = user.CreatedDate
+            };
         }
 
     }
 }
+
+
+
+
+

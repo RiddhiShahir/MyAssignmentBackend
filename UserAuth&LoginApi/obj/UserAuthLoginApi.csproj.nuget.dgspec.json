@@ -57,7 +57,7 @@
             },
             "Microsoft.AspNetCore.Authentication.JwtBearer": {
               "target": "Package",
-              "version": "[9.0.9, )"
+              "version": "[9.0.10, )"
             },
             "Microsoft.AspNetCore.OpenApi": {
               "target": "Package",
@@ -73,6 +73,10 @@
               "target": "Package",
               "version": "[9.0.9, )"
             },
+            "Microsoft.IdentityModel.Tokens": {
+              "target": "Package",
+              "version": "[8.14.0, )"
+            },
             "Npgsql.EntityFrameworkCore.PostgreSQL": {
               "target": "Package",
               "version": "[9.0.4, )"
@@ -84,6 +88,10 @@
             "Swashbuckle.AspNetCore": {
               "target": "Package",
               "version": "[9.0.6, )"
+            },
+            "System.IdentityModel.Tokens.Jwt": {
+              "target": "Package",
+              "version": "[8.14.0, )"
             },
             "Twilio": {
               "target": "Package",

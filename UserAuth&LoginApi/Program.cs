@@ -46,6 +46,8 @@ if (string.IsNullOrEmpty(Key))
 {
     throw new InvalidOperationException("JWT Key is not configured. Please set 'JwtSettings:Key' in your configuration.");
 }
+
+// Configure JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
 {
@@ -59,6 +61,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
         ValidAudience = builder.Configuration["JwtSettings:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Key))
+        //IssuerSigningKey = new SymmetricSecurityKey( Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Key"]))
     };
 });
 
