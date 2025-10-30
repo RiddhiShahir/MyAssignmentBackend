@@ -7,6 +7,7 @@ namespace UserAuthLoginApi.Models.DTOs
         public string? Email { get; set; } = string.Empty;
         public string? Mobile { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+        public DateTime LastUpdatedDate { get; set; }
     }
 
     public class UpdateProfileDto

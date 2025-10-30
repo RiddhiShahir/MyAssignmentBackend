@@ -5,24 +5,25 @@ using UserAuthLoginApi.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 
-namespace UserAuthLoginApi.Controllers
+namespace UserAuthLoginApi.Controllers  //defines namespace where you can store all your code files.
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class AuthController : ControllerBase
+    [ApiController] //it is an attribute that indicates that this class is an API controller.
+    [Route("api/[controller]")] // sets the url route for the controller
+    public class AuthController : ControllerBase // declared a class AuthController that inherits from ControllerBase which provides basic functionality for handling HTTP requests.
     {
-        private readonly AuthService _authService;
-        private readonly AppDbContext _context; // ✅ Added to fetch user status
+        private readonly AuthService _authService; // service to handle main logic
+        private readonly AppDbContext _context; //  used to query the database.
 
+        //constructor(runs automatically when controller is crested) to check if the service exists if not throws error.
         public AuthController(AuthService authService, AppDbContext context)
         {
             _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-            _context = context;
+            _context = context; // initializes the database context
         }
 
-        // --- User Registration ---
+        // --- Controller endpoint for User Registration ---
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegistrationRequest request)
+        public async Task<IActionResult> Register([FromBody] RegistrationRequest request) // defines an asynchronous method that handles HTTP POST requests to the "register" endpoint and returns the response.
         {
             try
             {
@@ -31,10 +32,11 @@ namespace UserAuthLoginApi.Controllers
 
                 var origin = $"{Request.Scheme}://{Request.Host}";
 
-                // Call actual registration logic:
+                // Calls actual registration logic from service:
 
                 var result = await _authService.Register(request.Name, request.Email, request.Mobile, request.Password);
 
+                //Finds the new user in db it is created or not.
                 var newUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.Mobile == request.Mobile);
                 return Ok(new
                 {
@@ -58,13 +60,13 @@ namespace UserAuthLoginApi.Controllers
                 if (request == null)
                     return BadRequest(new { error = "Invalid verification data" });
 
-                await _authService.VerifyEmail(request.UserId, request.Token);
+                await _authService.VerifyEmail(request.UserId, request.Token);// calls the method from auth service to verify email
 
                 var user = await _context.Users.FindAsync(request.UserId);
                 if (user == null)
                     return NotFound(new { error = "User not found" });
 
-                // ✅ Smart response based on verification status
+                //  Smart response based on verification status
                 if (user.IsVerified)
                 {
                     return Ok(new
@@ -102,7 +104,7 @@ namespace UserAuthLoginApi.Controllers
                 if (user == null)
                     return NotFound(new { error = "User not found" });
 
-                // ✅ Smart response based on verification status
+                //  Smart response based on verification status
                 if (user.IsVerified)
                 {
                     return Ok(new
@@ -182,23 +184,6 @@ namespace UserAuthLoginApi.Controllers
 
         [Authorize]  // Requires logged-in user
         [HttpPost("changepassword")]
-        // public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
-        // {
-        //     var userEmail = User.Identity?.Name; // Extract From JWT
-        //     if (userEmail == null)
-        //         return Unauthorized(new { message = "User not authenticated." });
-
-        //     try
-        //     {
-        //         var userId = int.Parse(User.FindFirst("id")!.Value);
-        //         await _authService.ChangePasswordAsync(userId, dto.CurrentPassword, dto.NewPassword);
-        //         return Ok(new { message = "Password changed successfully." });
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         return BadRequest(new { error = ex.Message });
-        //     }
-        // }
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
         {
             var userEmail = User.Identity?.Name; // Extract from JWT
@@ -263,32 +248,6 @@ namespace UserAuthLoginApi.Controllers
             }
         }
 
-        // // --- Set Password ---
-        // [HttpPost("setpassword")]
-        // public async Task<IActionResult> SetPassword([FromBody] SetPasswordRequest request)
-        // {
-        //     try
-        //     {
-        //         if (string.IsNullOrWhiteSpace(request.Password))
-        //             return BadRequest(new { error = "Password cannot be empty" });
-
-        //         var user = await _context.Users.FindAsync(request.UserId);
-        //         if (user == null)
-        //             return NotFound(new { error = "User not found" });
-
-        //         return Ok(new
-        //         {
-        //             message = "Password set successfully.",
-        //             verified = user.IsVerified
-        //         });
-        //     }
-        //     catch (Exception ex)
-        //     {
-        //         return BadRequest(new { error = ex.Message });
-        //     }
-        // }
-
-
         [HttpPost("refresh-token")]
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
         {
@@ -343,7 +302,8 @@ namespace UserAuthLoginApi.Controllers
                     name = u.Name,
                     email = u.Email,
                     mobile = u.Mobile,
-                    CreatedAt = u.CreatedDate
+                    CreatedAt = u.CreatedDate,
+                    LastUpdatedDate=u.LastUpdatedDate
                 })
                 .FirstOrDefaultAsync();
 
@@ -367,6 +327,33 @@ namespace UserAuthLoginApi.Controllers
 
             return Ok(new { message = "Profile updated successfully" });
         }
+
+        // way 2 of updating and reflecting updated user email in profile section
+        // [Authorize]
+        // [HttpPut("updateprofile")]
+        // public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
+        // {
+        //     var oldEmail = User.Identity?.Name;
+        //     if (oldEmail == null)
+        //         return Unauthorized(new { message = "Invalid or missing token" });
+
+        //     var success = await _authService.UpdateUserProfileAsync(oldEmail, dto);
+        //     if (!success)
+        //         return NotFound(new { message = "User not found" });
+
+        //     // If email changed, issue new JWT
+        //     if (!string.IsNullOrEmpty(dto.Email) && dto.Email != oldEmail)
+        //     {
+        //         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        //         if (user == null)
+        //             return NotFound();
+
+        //         var newToken = _jwtService.GenerateToken(user.Email); // your JWT generation method
+        //         return Ok(new { message = "Profile updated successfully", token = newToken });
+        //     }
+
+        //     return Ok(new { message = "Profile updated successfully" });
+        // }
 
 
     }

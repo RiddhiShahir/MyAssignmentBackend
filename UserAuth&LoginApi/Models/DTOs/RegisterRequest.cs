@@ -10,10 +10,10 @@ namespace UserAuthLoginApi.Models.DTOs
         public string? Password { get; set; }
         public string Role { get; set; } = "User";
     }
-    
+
     public class LoginDto
     {
-         public string? LoginMethod { get; set; }  // "email" or "mobile"
+        public string? LoginMethod { get; set; }  // "email" or "mobile"
         [Required] public string Identifier { get; set; } = null!; // email or mobile
         [Required] public string Password { get; set; } = null!;
     }
@@ -33,5 +33,8 @@ namespace UserAuthLoginApi.Models.DTOs
         // [Required] public string Mobile { get; set; } = null!;
         [Required] public string Otp { get; set; } = null!;
     }
+
+
+
 
 }

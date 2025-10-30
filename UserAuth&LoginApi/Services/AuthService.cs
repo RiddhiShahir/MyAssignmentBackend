@@ -12,37 +12,40 @@ using Twilio.Rest.Api.V2010.Account.AvailablePhoneNumberCountry;
 
 namespace UserAuthLoginApi.Services
 {
-    public interface IAuthService
+    public interface IAuthService // defines the contract for authentication-related operations.Declares a contract — any class that implements this must have these methods.
     {
-        Task<string> Register(string name, string email, string mobile, string password);
-        Task VerifyEmail(int userId, string token);
-        Task RequestOtpAsync(string mobile);
-        Task VerifyOtpAsync(string mobile, string otp);
-        Task<object> LoginAsync(LoginDto dto, string ipAddress);
+        Task<string> Register(string name, string email, string mobile, string password);//Task<string> → async method, returns a message like "Verification sent".
+        Task VerifyEmail(int userId, string token);// verifies email using userId and token.    
+        Task RequestOtpAsync(string mobile);// sends OTP to the given mobile number.
+        Task VerifyOtpAsync(string mobile, string otp);// verifies the OTP for the given mobile number.
+        Task ForgotPasswordAsync(string? email);// initiates forgot password process for the given email.
+        Task<object> LoginAsync(LoginDto dto, string ipAddress);// handles user login and returns tokens and user info.
+        Task<bool> UpdateUserProfileAsync(string email, UpdateProfileDto dto);
         Task<TokenResponseDto?> RefreshTokenAsync(string refreshToken, string ipAddress);
-        Task<bool> ValidateTokenAsync(String token);
-        Task RequestTokenAsync(string identifier);
-        //Task SetPassword(int userId, string password);
-        Task<UserProfileDto?> GetUserProfileAsync(string email);
+        Task<bool> ValidateTokenAsync(String token);// check if the given JWT token is valid.
+        Task RequestTokenAsync(string identifier); // sends/resends a verification token to the user's email or mobile.
+        Task VerifyOtp(int userId, string otp);
+        Task ResetPasswordAsync(ResetPasswordDto dto); // resets password using the provided DTO.
+        Task<UserProfileDto?> GetUserProfileAsync(string email); // retrieves user profile by email.
     }
 
     public interface IEmailService
     {
-        Task SendVerificationLink(string email, string link);
+        Task SendVerificationLink(string email, string link);// sends a verification link to the specified email address.
     }
 
     public interface ISmsService
     {
-        Task SendOtp(string mobile, string otp);
+        Task SendOtp(string mobile, string otp);// sends an OTP to the specified mobile number.
     }
 
-    public class AuthService : IAuthService
+    public class AuthService : IAuthService// implements the IAuthService interface, providing concrete logic for authentication operations.
     {
-        private readonly AppDbContext _context;
-        private readonly IEmailService _emailService;
-        private readonly ISmsService _smsService;
-        private readonly IConfiguration _config;
-        public AuthService(AppDbContext context, IEmailService emailService, ISmsService smsService, IConfiguration config)
+        private readonly AppDbContext _context;//private field to hold database context for data access
+        private readonly IEmailService _emailService;//private field to hold email service for sending emails
+        private readonly ISmsService _smsService;//private field to hold SMS service for sending OTPs
+        private readonly IConfiguration _config;//private field to hold configuration settings(AppSettings.json/environment variables/jwtsecrets,etc..)
+        public AuthService(AppDbContext context, IEmailService emailService, ISmsService smsService, IConfiguration config)// constructor to initialize the private fields with provided dependencies.
         {
             _context = context;
             _emailService = emailService;
@@ -77,7 +80,7 @@ namespace UserAuthLoginApi.Services
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            // ✅ Generate & store email verification token
+            //  Generate & store email verification token
 
             var emailToken = Guid.NewGuid().ToString();
 
@@ -94,12 +97,12 @@ namespace UserAuthLoginApi.Services
             await _context.EmailVerifications.AddAsync(emailVerification);
             await _context.SaveChangesAsync();
 
-            // ✅ Send email verification link with token
+            //  Send email verification link with token
 
             var verificationLink = $"https://UserAuthLoginApi/verify/email?token={emailToken}&userId={user.UserId}";
             await _emailService.SendVerificationLink(email, verificationLink);
 
-            // ✅ Generate & send OTP for mobile
+            //  Generate & send OTP for mobile
 
             var otp = GenerateOtp();
             await _smsService.SendOtp(mobile, otp);
@@ -236,14 +239,6 @@ namespace UserAuthLoginApi.Services
         }
 
         // ---------------- CHANGE PASSWORD (Logged-in User) ----------------
-        // public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword)
-        // {
-        //     var user = await _context.Users.FindAsync(userId);
-        //     if (user == null)
-        //         throw new Exception("User not found");
-
-        //     if (!BCrypt.Net.BCrypt.Verify(currentPassword, user.Password))
-        //         throw new Exception("Current password is incorrect");
 
         //     if (!IsStrongPassword(newPassword))
         //         throw new Exception("Weak password. Use uppercase, lowercase, number, and symbol.");
@@ -262,9 +257,19 @@ namespace UserAuthLoginApi.Services
             // Verify current password
             bool isPasswordValid = BCrypt.Net.BCrypt.Verify(currentPassword, user.Password);
             if (!isPasswordValid)
-                return (false, "Incorrect current password");
+            return (false, "Current password is incorrect");
 
-            // Update to new password
+            //  Check strong password
+             if (!IsStrongPassword(newPassword))
+             return (false, "Password must be at least 8 characters long and include uppercase, lowercase, digit, and special character.");
+            
+
+            // Prevent same password reuse
+            bool isSamePassword = BCrypt.Net.BCrypt.Verify(newPassword, user.Password);
+             if (isSamePassword)
+             return (false, "New password cannot be the same as the current password.");
+
+            // Update to new password 
             user.Password = BCrypt.Net.BCrypt.HashPassword(newPassword);
             user.LastUpdatedDate = DateTime.UtcNow;
 
@@ -284,31 +289,6 @@ namespace UserAuthLoginApi.Services
         //     }
         // }
 
-        // Utility(to avoid DRY principle) — Strong password validator
-        // private bool IsStrongPassword(string password)
-        // {
-        //     if (string.IsNullOrWhiteSpace(password)) return false;
-        //     return password.Length >= 8 &&
-        //            password.Any(char.IsUpper) &&
-        //            password.Any(char.IsLower) &&
-        //            password.Any(char.IsDigit) &&
-        //            password.Any(ch => !char.IsLetterOrDigit(ch));
-        // }
-
-
-        // ------------------ Password Handling utilities------------------
-        // public async Task SetPassword(int userId, string password)
-        // {
-        //     if (!IsStrongPassword(password))
-        //         throw new Exception("Weak password");
-
-        //     var user = await _context.Users.FindAsync(userId);
-        //     if (user == null) throw new Exception("User not found");
-
-        //     user.Password = BCrypt.Net.BCrypt.HashPassword(password);
-        //     user.LastUpdatedDate = DateTime.UtcNow;
-        //     await _context.SaveChangesAsync();
-        // }
 
         // ------------------ LOGIN IMPLEMENTATION ------------------
         public async Task<object> LoginAsync(LoginDto dto, string ipAddress)
@@ -344,7 +324,7 @@ namespace UserAuthLoginApi.Services
                 if (user == null)
                     throw new UnauthorizedAccessException("No account found with this mobile number.");
 
-                // ✅ Verify OTP
+                //  Verify OTP
                 var otpEntry = await _context.Otp
                     .Where(o => o.Mobile == identifier && !o.IsUsed && o.ExpiryTime > DateTime.UtcNow)
                     .OrderByDescending(o => o.CreatedAt)
@@ -356,18 +336,18 @@ namespace UserAuthLoginApi.Services
                     throw new UnauthorizedAccessException("Invalid or expired OTP.");
                 }
 
-                // ✅ Mark OTP as used
+                //  Mark OTP as used
                 otpEntry.IsUsed = true;
                 await _context.SaveChangesAsync();
 
-                // ✅ Mark mobile as verified if not already
+                //  Mark mobile as verified if not already
                 if (!user.IsMobileVerified)
                 {
                     user.IsMobileVerified = true;
                     await _context.SaveChangesAsync();
                 }
 
-                // ✅ If email is not verified → stop login
+                //  If email is not verified → stop login
                 if (!user.IsEmailVerified)
                 {
                     await LogLoginActivity(user.UserId, ipAddress, dto.LoginMethod, "Failed");
@@ -379,7 +359,7 @@ namespace UserAuthLoginApi.Services
                 throw new Exception("Invalid login method. Use 'email' or 'mobile'.");
             }
 
-            // ✅ Generate JWT, refresh token, etc.
+            //  Generate JWT, refresh token, etc.
             var jwt = CreateJwtToken(user);
             var refresh = new RefreshToken
             {
@@ -405,7 +385,7 @@ namespace UserAuthLoginApi.Services
             };
         }
 
-        // ✅ Helper method to log login activity
+        // Helper method to log login activity
         private async Task LogLoginActivity(int userId, string ipAddress, string? loginMethod, string status)
         {
             if (userId <= 0) return; // prevent FK errors
@@ -519,7 +499,7 @@ namespace UserAuthLoginApi.Services
                 new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
 
-                // ✅ This is critical: it allows [Authorize] and User.Identity.Name to work
+                // This is critical: it allows [Authorize] and User.Identity.Name to work
                 new Claim(ClaimTypes.Name, user.Email ?? string.Empty),
 
                 new Claim(ClaimTypes.Role, user.Role ?? "User"),
@@ -678,7 +658,8 @@ namespace UserAuthLoginApi.Services
                 Name = user.Name,
                 Email = user.Email,
                 Mobile = user.Mobile,
-                CreatedAt = user.CreatedDate
+                CreatedAt = user.CreatedDate,
+                LastUpdatedDate = user.LastUpdatedDate
             };
         }
 
